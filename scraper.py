@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup
 
 def set_interval(func):
     e = threading.Event()
-    while not e.wait(3000):
+    while not e.wait(10):
         try:
             func()
         except Exception as error:
@@ -18,17 +18,17 @@ def set_interval(func):
 
 host = 'https://er.medkirov.ru'
 ticket_times = []
+set_links = set()
 
-
-def search_tasks():
+def search_tickets():
     urllib3.disable_warnings()
     current_year = date.today().year
     current_week = date.today().isocalendar()[1]
     last_week = current_week + 5
-    global ticket_times, host
+    global ticket_times, host, set_links
     while current_week <= last_week:
-        url = host + '/er/ereg3/cities/297576/hospitals/7/specializations/70/calendars' \
-                     '/?week=' + str(current_week) + '&year=' + str(current_year)
+        url = host + '/er/ereg3/cities/297576/hospitals/7/specializations/70/' \
+                     'calendars/?week=' + str(current_week) + '&year=' + str(current_year)
         response = requests.get(url, verify=False)
         soup = BeautifulSoup(response.text, 'html.parser')
         table_rows = soup.find_all(class_='doctor')
@@ -52,8 +52,11 @@ def search_tasks():
                     month = ticket_url[108:111]
                 ticket_date = day + month + ticket_url[-4:]
                 for time in times:
-                    ticket_times.append(time.text + ': ' + host + time['href'])
-                print(ticket_date, doctor, ticket_times)
+                    link = host + time['href']
+                    if link not in set_links:
+                        print(ticket_date, doctor, time.text, link)
+                        set_links.add(link)
         current_week += 1
 
-set_interval(search_tasks)
+
+set_interval(search_tickets)
