@@ -1,8 +1,10 @@
 import requests
 import urllib3
 import threading
+import urllib.parse as urlparse
 
-from datetime import date
+from urllib.parse import parse_qs
+from datetime import date, datetime
 from bs4 import BeautifulSoup
 
 
@@ -20,6 +22,7 @@ host = 'https://er.medkirov.ru'
 ticket_times = []
 set_links = set()
 
+
 def search_tickets():
     urllib3.disable_warnings()
     current_year = date.today().year
@@ -36,25 +39,18 @@ def search_tickets():
             ticket = data.find(class_='freeTickets')
             if ticket:
                 ticket_url = host + ticket.find_parent('a')['href']
+                parsed = urlparse.urlparse(ticket_url)
+                ticket_date = datetime.strptime(
+                    parse_qs(parsed.query)['date'][0], '%d.%m.%Y'
+                )
                 response = requests.get(ticket_url, verify=False)
                 soup = BeautifulSoup(response.text, 'html.parser')
                 times = soup.find_all('a', class_='kticket-free')
                 doctor = soup.find('address').find(class_='media-heading').text
-                if ticket_url[106] == '.':
-                    day = '0' + ticket_url[105:107]
-                else:
-                    day = ticket_url[105:108]
-                if ticket_url[108] == '.':
-                    month = '0' + ticket_url[107:109]
-                elif ticket_url[109] == '.':
-                    month = '0' + ticket_url[108:110]
-                else:
-                    month = ticket_url[108:111]
-                ticket_date = day + month + ticket_url[-4:]
                 for time in times:
                     link = host + time['href']
                     if link not in set_links:
-                        print(ticket_date, doctor, time.text, link)
+                        print(ticket_date.strftime('%d.%m.%Y'), doctor, time.text, link)
                         set_links.add(link)
         current_week += 1
 
