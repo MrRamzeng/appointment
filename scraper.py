@@ -1,37 +1,27 @@
-import requests
-import urllib3
-import threading
-import urllib.parse as urlparse
+import requests, urllib3, threading, urllib.parse as urlparse, atexit, time
 
 from urllib.parse import parse_qs
 from datetime import date, datetime
 from bs4 import BeautifulSoup
-
-
-def set_interval(func):
-    e = threading.Event()
-    while not e.wait(10):
-        try:
-            func()
-        except Exception as error:
-            with open('errors.log', 'a') as errorsLog:
-                print(error, file=errorsLog)
-
+from viberbot.api.messages import URLMessage
+from viberbot.api.messages.text_message import TextMessage
+from apscheduler.schedulers.background import BackgroundScheduler
 
 host = 'https://er.medkirov.ru'
-ticket_times = []
 set_links = set()
+clients = ['LL3mgrqogJK9yxBlHFvvSQ=='] #, 'J+GEZQj348xxUEK77WH/gg==', 'tPJ5GNMNYhx6MP0XND9Dmw==']
+
+import pybot
 
 
 def search_tickets():
     urllib3.disable_warnings()
     current_year = date.today().year
     current_week = date.today().isocalendar()[1]
-    last_week = current_week + 5
-    global ticket_times, host, set_links
+    last_week = current_week + 3
+    global host, set_links
     while current_week <= last_week:
-        url = host + '/er/ereg3/cities/297576/hospitals/7/specializations/70/' \
-                     'calendars/?week=' + str(current_week) + '&year=' + str(current_year)
+        url = host + '/cities/297576/hospitals/215/specializations/64/calendars/?week=' + str(current_week) + '&year=' + str(current_year)
         response = requests.get(url, verify=False)
         soup = BeautifulSoup(response.text, 'html.parser')
         table_rows = soup.find_all(class_='doctor')
@@ -47,12 +37,23 @@ def search_tickets():
                 soup = BeautifulSoup(response.text, 'html.parser')
                 times = soup.find_all('a', class_='kticket-free')
                 doctor = soup.find('address').find(class_='media-heading').text
-                for time in times:
-                    link = host + time['href']
-                    if link not in set_links:
-                        print(ticket_date.strftime('%d.%m.%Y'), doctor, time.text, link)
-                        set_links.add(link)
+                if doctor == 'Довыденко Виктория Евгеньевна':
+                    for ttime in times:
+                        link = host + ttime['href']
+                        if link not in set_links:
+                            text = ticket_date.strftime('%d.%m.%Y') + ' в ' + ttime.text + \
+                                   '\n' + doctor + '\n' + link
+                            for client in clients:
+                                pybot.viber.send_messages(
+                                    client, [TextMessage(text=text)]
+                                )
+                            set_links.add(link)
+                        time.sleep(5)
         current_week += 1
 
 
-set_interval(search_tickets)
+scheduler = BackgroundScheduler()
+scheduler.add_job(func=search_tickets, trigger='interval', seconds=5)
+scheduler.start()
+
+atexit.register(lambda: scheduler.shutdown())
